@@ -1,3 +1,4 @@
+from datetime import timedelta
 from odoo import models, fields, api
 
 class TestModel(models.Model):
@@ -48,6 +49,16 @@ class EstateProperty(models.Model):
         for record in self:
             best_price = max(record.offer_ids.mapped('price'), default=0)
             record.best_price = best_price
+    
+    @api.onchange("garden")
+    def _onchange_garden(self):
+        if self.garden:
+            self.garden_area = 10
+            self.garden_orientation = 'north'
+        elif not self.garden:
+            self.garden_area = 0
+            self.garden_orientation = None
+
 
 
 class EstatePropertyType(models.Model):
@@ -74,3 +85,22 @@ class EstatePropertyOffer(models.Model):
         selection=[('accepted', 'Accepted'), ('refused', 'Refused')], copy=False)
     partner_id = fields.Many2one("res.partner", required=True)
     property_id = fields.Many2one("estate_property", required=True)
+
+    validity = fields.Integer(default=7)
+    date_deadline = fields.Date(compute="_compute_date_deadline", inverse="_inverse_date_deadline")
+
+    @api.depends("create_date", "validity")
+    def _compute_date_deadline(self):
+        for record in self:
+            if record.create_date:
+                create_date = fields.Datetime.from_string(record.create_date)
+                record.date_deadline = (create_date + timedelta(days=record.validity)).date()
+
+    def _inverse_date_deadline(self):
+        for record in self:
+            if record.create_date and record.date_deadline:
+                create_date = fields.Datetime.from_string(record.create_date)
+                record.validity = (fields.Datetime.from_string(record.date_deadline) - create_date).days
+
+
+
